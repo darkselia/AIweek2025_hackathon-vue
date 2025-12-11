@@ -9,6 +9,7 @@
   const previewUrl = ref<string | null>(null)
   const resultUrl = ref<string | null>(null)
   const resultText = ref<string>('')
+  const report = ref<string>('')
   const resultItems = ref<Array<{ box_id: string, klass: string, confidence: string }>>([])
 
   function revoke (urlRef: { value: string | null }) {
@@ -79,6 +80,7 @@
         const data = await response.json().catch(() => ({} as any))
 
         const texts = (data as any)?.texts
+        report.value = (data as any)?.report
         // новый формат: массив объектов { box_id, klass, confidence }
         if (Array.isArray(texts) && texts.length > 0 && typeof texts[0] === 'object') {
           resultItems.value = texts.map((t: any) => ({
@@ -259,10 +261,8 @@
               <span class="text-icon" />
               <h3 class="text-title">Результат классификации</h3>
             </div>
-            <div v-if="resultItems && resultItems.length > 0">
-              <ClassificationResultTable :items="resultItems" :klass-map="damageClassRuMap" />
-            </div>
-            <p v-else class="text-content">{{ resultText }}</p>
+            <div>{{ report }}</div>
+
           </v-card>
         </div>
 
@@ -270,15 +270,13 @@
         <div class="cell cell-2-3">
           <v-card class="metrics-card">
             <h4 class="metrics-title">Метрики</h4>
-            <div class="metric-row">
-              <span class="metric-label">Статус</span>
-              <span class="metric-value" :class="resultUrl ? 'metric-value--ok' : 'metric-value--none'">{{
-                resultUrl ? 'Готово' : 'Нет данных'
-              }}</span>
+            <div v-if="resultItems && resultItems.length > 0">
+              <ClassificationResultTable :items="resultItems" :klass-map="damageClassRuMap" />
             </div>
-            <div class="metrics-actions">
-              <v-btn class="metrics-btn" :disabled="!resultText" variant="outlined">Показать сырые данные</v-btn>
-            </div>
+            <p v-else class="text-content">{{ resultText }}</p>
+            <!--            <div class="metrics-actions">-->
+            <!--              <v-btn class="metrics-btn" :disabled="!resultText" variant="outlined">Показать сырые данные</v-btn>-->
+            <!--            </div>-->
           </v-card>
         </div>
       </div>
