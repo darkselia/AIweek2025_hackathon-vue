@@ -2,13 +2,22 @@
   import { onBeforeUnmount, ref } from 'vue'
   import { post } from '@/utils.ts'
 
-  // Состояния
   const selectedImage = ref<File | null>(null)
   const isDragging = ref(false)
   const isProcessing = ref(false)
   const previewUrl = ref<string | null>(null)
-  const resultUrl = ref<string | null>(null) // результат из image_data или бинарного ответа
-  const resultText = ref<string>('') // текст из поля "texts"
+  const resultUrl = ref<string | null>(null)
+  const resultText = ref<string>('')
+  const resultItems = ref<Array<{ box_id: string, klass: string, confidence: string }>>([])
+
+  const klassMap: Record<string, string> = {
+    'crazing': 'Трещины',
+    'inclusion': 'Включения',
+    'patches': 'Бляшки',
+    'pitted_surface': 'Каверны',
+    'rolled-in_scale': 'Окалины',
+    'scratches': 'Царапины',
+  }
 
   // Вспомогательные функции
   function revoke (urlRef: { value: string | null }) {
@@ -79,12 +88,21 @@
         const data = await response.json().catch(() => ({} as any))
 
         const texts = (data as any)?.texts
-        if (Array.isArray(texts)) {
+        // новый формат: массив объектов { box_id, klass, confidence }
+        if (Array.isArray(texts) && texts.length > 0 && typeof texts[0] === 'object') {
+          resultItems.value = texts.map((t: any) => ({
+            box_id: String(t?.box_id ?? ''),
+            klass: String(t?.klass ?? ''),
+            confidence: String(t?.confidence ?? ''),
+          }))
+          resultText.value = ''
+        } else if (Array.isArray(texts)) {
           resultText.value = texts.join('\n')
+          resultItems.value = []
         } else if (typeof texts === 'string') {
           resultText.value = texts
+          resultItems.value = []
         }
-
         if (data && data.image_data) {
           const base64 = data.image_data as string
           const mime = (data.content_type as string) || 'image/jpeg'
@@ -225,10 +243,10 @@
             <transition mode="out-in" name="fade">
               <div v-if="resultUrl" class="result-wrapper">
                 <img alt="Результат" class="result-image" :src="resultUrl">
-                <div class="status-chip">
-                  <span class="dot" />
-                  Анализ завершён
-                </div>
+                <!--                <div class="status-chip">-->
+                <!--                  <span class="dot" />-->
+                <!--                  Анализ завершён-->
+                <!--                </div>-->
               </div>
               <div v-else class="result-placeholder">
                 <p class="placeholder-title">Ожидание обработки</p>
@@ -242,7 +260,7 @@
 
     <!-- Строка 2: 2.1-2 текст из ответа, 2.3 метрики -->
     <transition name="fade">
-      <div v-if="resultText || resultUrl" class="grid-bottom">
+      <div v-if="resultText || resultUrl || (resultItems && resultItems.length > 0)" class="grid-bottom">
         <!-- 2.1-2: текст, занимает две колонки -->
         <div class="cell cell-2-1 text-block">
           <v-card class="text-card">
@@ -250,8 +268,10 @@
               <span class="text-icon" />
               <h3 class="text-title">Результат классификации</h3>
             </div>
-            <h4 class="text-card-title">Описание</h4>
-            <p class="text-content">{{ resultText }}</p>
+            <div v-if="resultItems && resultItems.length > 0">
+              <ClassificationResultTable :items="resultItems" :klass-map="klassMap" />
+            </div>
+            <p v-else class="text-content">{{ resultText }}</p>
           </v-card>
         </div>
 
@@ -276,44 +296,14 @@
 </template>
 
 <style scoped>
-/* Сетка верхней строки: 3 колонки */
-.grid-top {
-  display: grid;
-  grid-template-columns: 5fr 1fr 5fr;
-  gap: 24px;
-  align-items: stretch;
-  margin: 40px;
-}
-
-.cell {
-  height: 100%;
-}
-
-/* Сетка нижней строки: две колонки под текст и одна под метрики */
-.grid-bottom {
-  display: grid;
-  grid-template-columns: 7fr 5fr;
-  gap: 24px;
-  margin-top: 16px;
-}
-
-.cell-2-1 {
-  grid-column: 1 / 2;
-}
-
-.cell-2-3 {
-  grid-column: 2 / 3;
-}
-
-/* Остальные стили — как ранее */
 .app2-container {
-  padding-bottom: 48px;
+  margin: 32px auto;
+  max-width: 1200px;
 }
 
 .app2-header {
   text-align: center;
   margin-bottom: 24px;
-  margin-top: 20px;
 }
 
 .app2-title {
@@ -327,6 +317,33 @@
   font-size: 18px;
   color: rgba(var(--v-theme-on-background), 0.7);
   max-width: 720px;
+}
+
+.grid-top {
+  display: grid;
+  grid-template-columns: 5fr 1fr 5fr;
+  gap: 24px;
+  align-items: stretch;
+  margin: 40px;
+}
+
+.cell {
+  height: 100%;
+}
+
+.grid-bottom {
+  display: grid;
+  grid-template-columns: 7fr 5fr;
+  gap: 24px;
+  margin: 16px 40px;;
+}
+
+.cell-2-1 {
+  grid-column: 1 / 2;
+}
+
+.cell-2-3 {
+  grid-column: 2 / 3;
 }
 
 .section-block {
@@ -370,8 +387,8 @@
 
 .upload-card,
 .result-card {
-  flex: 1 1 auto; /* занять всё оставшееся пространство внутри section-block */
-  min-height: 0; /* разрешить сжиматься по высоте, важно для флексов */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .upload-card {
@@ -397,14 +414,22 @@
 }
 
 .preview-wrapper {
-  display: flex;
   position: relative;
+  width: 100%;
+  height: auto;
+  display: flex;
+  align-items: center;
   justify-content: center;
 }
 
 .preview-image {
-  object-fit: cover;
-  height: 100%;
+  max-height: 300px;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
 }
 
 .preview-overlay {
@@ -412,9 +437,10 @@
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
   opacity: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 0 16px;
   color: white;
   font-weight: 600;
   transition: opacity .25s ease;
@@ -456,8 +482,13 @@
 }
 
 .result-image {
-  height: 100%;
-  object-fit: cover;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
 }
 
 .status-chip {
@@ -620,7 +651,26 @@
   width: 100%;
 }
 
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+.result-table th,
+.result-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.3);
+}
+
+.result-table th {
+  font-weight: 700;
+  color: rgba(var(--v-theme-on-surface), 0.8);
+}
+
 /* Анимации переходов */
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.25s ease, transform 0.25s ease;
@@ -630,5 +680,6 @@
 .fade-leave-to {
   opacity: 0;
   transform: translateY(6px);
+
 }
 </style>

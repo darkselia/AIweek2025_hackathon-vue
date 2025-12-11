@@ -27,7 +27,6 @@
     labels: props.labels ?? [],
     datasets: [
       {
-        label: props.title ?? 'Сумма повреждений',
         data: props.data ?? [],
         backgroundColor: props.backgroundColor ?? 'rgba(16, 185, 129, 0.35)',
         borderColor: props.borderColor ?? 'rgb(16, 185, 129)',
@@ -40,12 +39,12 @@
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'top' as const },
+      legend: { display: false },
       title: { display: !!props.title, text: props.title ?? '' },
       tooltip: { mode: 'index' as const, intersect: false },
     },
     scales: {
-      x: { title: { display: true, text: 'Дата' } },
+      x: { title: { display: true, text: 'Сотрудники' } },
       y: { beginAtZero: true, title: { display: true, text: 'Количество' } },
     },
   }))
@@ -56,5 +55,4 @@
 </template>
 
 <style scoped>
-/* высоту задаёт родитель */
 </style>

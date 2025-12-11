@@ -1,8 +1,8 @@
 <script setup lang="ts">
   import { onMounted, ref, watch } from 'vue'
-  import { get } from '@/utils.ts'
+  import { VDateInput } from 'vuetify/labs/VDateInput'
+  import { get } from '@/utils'
 
-  // Опции выбора классов
   type DamageClassKey = 'all' | 'crazing' | 'inclusion' | 'patches' | 'pitted_surface' | 'rolled_in_scale' | 'scratches'
 
   const damageClassOptions: Array<{ label: string, value: DamageClassKey }> = [
@@ -19,24 +19,19 @@
   const isLoading = ref(false)
   const errorMsg = ref('')
 
-  // Данные графика
   const labels = ref<string[]>([])
   const dataPoints = ref<number[]>([])
 
-  // Данные для вспомогательных графиков
   const barLabels = ref<string[]>([])
   const barData = ref<number[]>([])
   const doughnutLabels = ref<string[]>([])
   const doughnutData = ref<number[]>([])
 
-  // Данные для круговой диаграммы по категориям
   const categoryLabels = ref<string[]>([])
   const categoryData = ref<number[]>([])
 
-  // График-изображение, получаемый с сервера по выбранному классу
   const graphImageUrl = ref<string | null>(null)
 
-  // Утилиты
   async function handleJsonResponse<T> (res: Response, errorMessage: string, fallback: T): Promise<T> {
     if (!res.ok) {
       const t = await res.text().catch(() => '')
@@ -46,28 +41,38 @@
   }
 
   function normalizeDailyMetrics (json: Array<{ date: string, count: number }>) {
-    type MetricsItem = { date: string, count: number }
-    const arr = (json as MetricsItem[])
-      .filter(item => typeof item?.date === 'string' && typeof item?.count === 'number')
-      .slice()
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    labels.value = arr.map(i => i.date)
-    dataPoints.value = arr.map(i => i.count)
+    const arr = (json ?? [])
+      .filter((item: {
+        date: unknown
+        count: unknown
+      }) => typeof item?.date === 'string' && typeof item?.count === 'number')
+    const sorted = [...arr].sort((a: { date: string, count: number }, b: {
+      date: string
+      count: number
+    }) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    labels.value = sorted.map((i: { date: string, count: number }) => i.date)
+    dataPoints.value = sorted.map((i: { date: string, count: number }) => i.count)
   }
 
+  const weekNames: string[] = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+  const getWeekName = (idx: number): string => String(weekNames[idx] ?? 'Вс')
+
   function buildWeekDistribution () {
-    const weekNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
-    const totals = new Map<string, number>(weekNames.map(n => [n, 0]))
-    for (let i = 0; i < labels.value.length; i++) {
-      const d = new Date(labels.value[i])
-      const name = weekNames[d.getDay()] // 0..6, где 0 — Вс
-      totals.set(name, (totals.get(name) ?? 0) + (dataPoints.value[i] ?? 0))
+    const totals = new Map<string, number>(weekNames.map((n: string) => [n, 0]))
+    const len = Math.min(labels.value.length, dataPoints.value.length)
+    for (let i = 0; i < len; i++) {
+      const raw: string = labels.value[i] ?? ''
+      const ts: number = Date.parse(raw)
+      const d: Date = Number.isFinite(ts) ? new Date(ts) : new Date()
+      const idx: number = d.getDay()
+      const name: string = getWeekName(idx)
+      const prev: number = totals.get(name) ?? 0
+      totals.set(name, prev + (dataPoints.value[i] ?? 0))
     }
     doughnutLabels.value = Array.from(totals.keys())
     doughnutData.value = Array.from(totals.values())
   }
 
-  // Загрузка: работники
   async function fetchWorkersMetrics () {
     try {
       const res = await get('/api/metrics/workers')
@@ -75,38 +80,78 @@
         name: string
         count: number
       }>
-      const filtered = json.filter(i => typeof i?.name === 'string' && typeof i?.count === 'number')
-      barLabels.value = filtered.map(i => i.name)
-      barData.value = filtered.map(i => i.count)
+      const filtered = json.filter((i: {
+        name: unknown
+        count: unknown
+      }) => typeof i?.name === 'string' && typeof i?.count === 'number')
+      barLabels.value = filtered.map((i: { name: string, count: number }) => i.name)
+      barData.value = filtered.map((i: { name: string, count: number }) => i.count)
     } catch {
       barLabels.value = []
       barData.value = []
     }
   }
 
-  // Загрузка: категории (общая сводка)
   async function fetchCategoryMetrics () {
     try {
       const res = await get('/api/metrics/categories')
       const json = await handleJsonResponse(res, 'Ошибка получения распределения по категориям', {}) as Record<string, number>
-      const entries = Object.entries(json).filter(([k, v]) => typeof k === 'string' && typeof v === 'number')
-      categoryLabels.value = entries.map(([k]) => k)
-      categoryData.value = entries.map(([, v]) => v)
+      const entries: Array<[string, number]> = Object.entries(json)
+      const sorted = [...entries].sort((a: [string, number], b: [string, number]) => a[0].localeCompare(b[0], 'ru', { sensitivity: 'base' }))
+      categoryLabels.value = sorted.map(([k]) => k)
+      categoryData.value = sorted.map(([, v]) => v)
     } catch {
       categoryLabels.value = []
       categoryData.value = []
     }
   }
 
-  // Загрузка: ежедневные метрики (зависят от класса)
+  function formatDateISO (d: Date): string {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
+  const today = new Date()
+  const oneYearAgo = new Date(today)
+  oneYearAgo.setFullYear(today.getFullYear() - 1)
+  const startDate = ref<string>(formatDateISO(oneYearAgo))
+  const endDate = ref<string>(formatDateISO(today))
+
   async function fetchMetrics (cls: DamageClassKey) {
     isLoading.value = true
     errorMsg.value = ''
     try {
       const params: Record<string, unknown> = {}
       if (cls && cls !== 'all') params.class = cls
+
+      const toISO = (val: unknown): string | undefined => {
+        if (!val) return undefined
+        if (typeof val === 'string') {
+          const s = val.trim()
+          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+          const ts = Date.parse(s)
+          if (!Number.isFinite(ts)) return undefined
+          return formatDateISO(new Date(ts))
+        }
+        if (val instanceof Date) {
+          if (Number.isNaN(val.getTime())) return undefined
+          return formatDateISO(val)
+        }
+        return undefined
+      }
+
+      const ds = toISO(startDate.value)
+      const de = toISO(endDate.value)
+      if (ds) params.date_start = ds
+      if (de) params.date_end = de
+
       const res = await get('/api/metrics', params)
-      const json = await handleJsonResponse(res, 'Ошибка получения метрик', []) as Array<{ date: string, count: number }>
+      const json = await handleJsonResponse(res, 'Ошибка получения метрик', []) as Array<{
+        date: string
+        count: number
+      }>
       normalizeDailyMetrics(json)
       buildWeekDistribution()
     } catch (error: any) {
@@ -122,7 +167,6 @@
 
   async function fetchGraphImage (cls: DamageClassKey) {
     try {
-      // очищаем предыдущий URL, если был
       if (graphImageUrl.value) {
         URL.revokeObjectURL(graphImageUrl.value)
         graphImageUrl.value = null
@@ -130,21 +174,14 @@
       const params: Record<string, unknown> = {}
       if (cls && cls !== 'all') params.class = cls
       const res = await get('/api/metrics/graph', params)
-      const contentType = res.headers.get('content-type') ?? ''
       if (!res.ok) {
         const t = await res.text().catch(() => '')
-        throw new Error(t || 'Ошибка получения графика-изображения')
+        errorMsg.value = t || 'Ошибка получения графика-изображения'
+        graphImageUrl.value = null
+        return
       }
-      if (contentType.startsWith('image/')) {
-        const blob = await res.blob()
-        graphImageUrl.value = URL.createObjectURL(blob)
-      } else {
-        // Попытка интерпретировать как бинарные данные
-        const blob = await res.blob().catch(() => null)
-        if (blob) {
-          graphImageUrl.value = URL.createObjectURL(blob)
-        }
-      }
+      const blob = await res.blob().catch(() => null)
+      graphImageUrl.value = blob ? URL.createObjectURL(blob) : null
     } catch {
       graphImageUrl.value = null
     }
@@ -162,6 +199,10 @@
   watch(selectedClass, cls => {
     fetchMetrics(cls)
     fetchGraphImage(cls)
+  })
+
+  watch([startDate, endDate], () => {
+    fetchMetrics(selectedClass.value)
   })
 </script>
 
@@ -185,6 +226,7 @@
         :return-object="false"
         variant="outlined"
       />
+
       <div class="status">
         <v-chip v-if="isLoading" color="primary" label>Загрузка…</v-chip>
         <v-chip v-else-if="errorMsg" color="error" label>{{ errorMsg }}</v-chip>
@@ -196,6 +238,26 @@
       <v-card class="card">
         <div class="chart">
           <LineChart :data="dataPoints" :labels="labels" title="Статистика повреждений по дням" />
+        </div>
+        <div class="line-controls">
+          <VDateInput
+            v-model="startDate"
+            class="date-input"
+            density="comfortable"
+            :format="(d: any) => (typeof d === 'string' ? d : d?.toISOString?.().slice(0,10) ?? '')"
+            hide-details
+            label="Начальная дата"
+            variant="outlined"
+          />
+          <VDateInput
+            v-model="endDate"
+            class="date-input"
+            density="comfortable"
+            :format="(d: any) => (typeof d === 'string' ? d : d?.toISOString?.().slice(0,10) ?? '')"
+            hide-details
+            label="Конечная дата"
+            variant="outlined"
+          />
         </div>
       </v-card>
 
@@ -224,14 +286,14 @@
           <DoughnutChart :data="categoryData" :labels="categoryLabels" title="Распределение по категориям" />
         </div>
       </v-card>
-
     </div>
   </v-container>
 </template>
 
 <style scoped>
 .metrics {
-  padding-bottom: 32px;
+  margin: 32px auto;
+  max-width: 1200px;
 }
 
 .header {
@@ -257,10 +319,15 @@
   gap: 16px;
   justify-content: center;
   margin: 12px 0 20px;
+  flex-wrap: wrap;
 }
 
 .combobox {
   min-width: 320px;
+}
+
+.date-input {
+  min-width: 200px;
 }
 
 .status {
@@ -316,5 +383,14 @@
 
 .image-placeholder-sub {
   font-size: 14px;
+}
+
+.line-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
 }
 </style>

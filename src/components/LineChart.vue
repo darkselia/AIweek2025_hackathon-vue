@@ -27,7 +27,6 @@
     labels: props.labels ?? [],
     datasets: [
       {
-        label: props.title ?? 'Количество повреждений',
         data: props.data ?? [],
         borderColor: props.borderColor ?? 'rgb(59, 130, 246)',
         backgroundColor: props.backgroundColor ?? 'rgba(59, 130, 246, 0.25)',
@@ -46,7 +45,7 @@
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'top' as const },
+        legend: { display: false },
         title: { display: !!props.title, text: props.title ?? '' },
         tooltip: { mode: 'index' as const, intersect: false },
       },
@@ -69,5 +68,4 @@
 </template>
 
 <style scoped>
-/* компонент без дополнительных стилей, используется контейнер с высотой у родителя */
 </style>

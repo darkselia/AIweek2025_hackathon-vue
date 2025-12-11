@@ -211,7 +211,6 @@ section {
     font-size: 30px;
   }
 
-
   .main-header {
     font-size: 40px;
   }

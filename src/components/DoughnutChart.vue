@@ -36,12 +36,29 @@
   }
 
   const basePalette: Record<string, string> = {
-    crazing: '#3B82F6',
-    inclusion: '#10B981',
-    patches: '#EAB308',
-    pitted_surface: '#6366F1',
-    rolled_in_scale: '#14B8A6',
-    scratches: '#F43F5E',
+    'crazing': '#3B82F6',
+    'inclusion': '#10B981',
+    'patches': '#EAB308',
+    'pitted_surface': '#b671f6',
+    'rolled-in_scale': '#19ba1e',
+    'scratches': '#F43F5E',
+  }
+
+  // Перевод названий категорий на русский
+  const ruMap: Record<string, string> = {
+    'crazing': 'трещины',
+    'inclusion': 'включения',
+    'patches': 'бляшки',
+    'pitted_surface': 'кавeрны',
+    'rolled-in_scale': 'окалины',
+    'scratches': 'царапины',
+  }
+
+  function translateLabel (lbl: string): string {
+    const isDefect = /_defect$/i.test(lbl)
+    const key = lbl.replace(/_defect$/i, '')
+    const base = ruMap[key] ?? key
+    return isDefect ? `${base} (дефект)` : base
   }
 
   const colorsComputed = computed(() => {
@@ -56,18 +73,33 @@
     })
   })
 
-  const chartData = computed(() => ({
-    labels: props.labels ?? [],
-    datasets: [
-      {
-        label: props.title ?? 'Распределение повреждений по категориям',
-        data: props.data ?? [],
-        backgroundColor: colorsComputed.value.map(c => c.bg),
-        borderColor: colorsComputed.value.map(c => c.border),
-        borderWidth: 1,
-      },
-    ],
-  }))
+  // Формируем пары и сортируем по алфавиту, затем применяем перевод меток
+  const chartData = computed(() => {
+    const labels = props.labels ?? []
+    const values = props.data ?? []
+    const colors = colorsComputed.value
+
+    const pairs = labels.map((lbl, i) => ({
+      label: lbl,
+      value: values[i] ?? 0,
+      color: colors[i] ?? { bg: hexToRgba('#64748B', 0.5), border: hexToRgba('#64748B', 1) },
+    }))
+
+    pairs.sort((a, b) => a.label.localeCompare(b.label, 'ru', { sensitivity: 'base' }))
+
+    return {
+      labels: pairs.map(p => translateLabel(p.label)),
+      datasets: [
+        {
+          label: props.title ?? 'Распределение повреждений по категориям',
+          data: pairs.map(p => p.value),
+          backgroundColor: pairs.map(p => p.color.bg),
+          borderColor: pairs.map(p => p.color.border),
+          borderWidth: 1,
+        },
+      ],
+    }
+  })
 
   const chartOptions = computed(() => ({
     responsive: true,
@@ -85,5 +117,4 @@
 </template>
 
 <style scoped>
-/* высоту задаёт родитель */
 </style>

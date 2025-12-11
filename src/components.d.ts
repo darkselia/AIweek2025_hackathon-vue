@@ -15,6 +15,7 @@ declare module 'vue' {
     AppBar: typeof import('./components/AppBar.vue')['default']
     BarChart: typeof import('./components/BarChart.vue')['default']
     CapabilitiesCard: typeof import('./components/CapabilitiesCard.vue')['default']
+    ClassificationResultTable: typeof import('./components/ClassificationResultTable.vue')['default']
     DoughnutChart: typeof import('./components/DoughnutChart.vue')['default']
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
     LineChart: typeof import('./components/LineChart.vue')['default']
