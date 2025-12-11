@@ -2,6 +2,7 @@
   import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js'
   import { computed } from 'vue'
   import { Doughnut } from 'vue-chartjs'
+  import { translateDamageLabel } from '@/lib/translations'
 
   ChartJS.register(ArcElement, Tooltip, Legend)
 
@@ -44,57 +45,29 @@
     'scratches': '#F43F5E',
   }
 
-  // Перевод названий категорий на русский
-  const ruMap: Record<string, string> = {
-    'crazing': 'трещины',
-    'inclusion': 'включения',
-    'patches': 'бляшки',
-    'pitted_surface': 'кавeрны',
-    'rolled-in_scale': 'окалины',
-    'scratches': 'царапины',
-  }
-
-  function translateLabel (lbl: string): string {
-    const isDefect = /_defect$/i.test(lbl)
+  const colorsComputed = computed(() => (props.labels ?? []).map(lbl => {
     const key = lbl.replace(/_defect$/i, '')
-    const base = ruMap[key] ?? key
-    return isDefect ? `${base} (дефект)` : base
-  }
+    const base = basePalette[key] ?? '#64748B'
+    const isDefect = /_defect$/i.test(lbl)
+    const hex = isDefect ? darken(base, 0.7) : base
+    return { bg: hexToRgba(hex, 0.5), border: hexToRgba(hex, 1) }
+  }))
 
-  const colorsComputed = computed(() => {
-    return (props.labels ?? []).map(lbl => {
-      const key = lbl.replace(/_defect$/i, '')
-      const base = basePalette[key] ?? '#64748B' // default slate
-      const isDefect = /_defect$/i.test(lbl)
-      const hex = isDefect ? darken(base, 0.7) : base
-      const bg = hexToRgba(hex, 0.5)
-      const border = hexToRgba(hex, 1)
-      return { bg, border }
-    })
-  })
-
-  // Формируем пары и сортируем по алфавиту, затем применяем перевод меток
   const chartData = computed(() => {
     const labels = props.labels ?? []
     const values = props.data ?? []
     const colors = colorsComputed.value
-
-    const pairs = labels.map((lbl, i) => ({
-      label: lbl,
-      value: values[i] ?? 0,
-      color: colors[i] ?? { bg: hexToRgba('#64748B', 0.5), border: hexToRgba('#64748B', 1) },
-    }))
-
+    const defaultColor = { bg: hexToRgba('#64748B', 0.5), border: hexToRgba('#64748B', 1) }
+    const pairs = labels.map((lbl, i) => ({ label: lbl, value: values[i] ?? 0, color: colors[i] ?? defaultColor }))
     pairs.sort((a, b) => a.label.localeCompare(b.label, 'ru', { sensitivity: 'base' }))
-
     return {
-      labels: pairs.map(p => translateLabel(p.label)),
+      labels: pairs.map(p => translateDamageLabel(p.label)),
       datasets: [
         {
           label: props.title ?? 'Распределение повреждений по категориям',
           data: pairs.map(p => p.value),
-          backgroundColor: pairs.map(p => p.color.bg),
-          borderColor: pairs.map(p => p.color.border),
+          backgroundColor: pairs.map(p => (p.color?.bg ?? defaultColor.bg)),
+          borderColor: pairs.map(p => (p.color?.border ?? defaultColor.border)),
           borderWidth: 1,
         },
       ],

@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import { computed } from 'vue'
+  import { damageClassRuMap } from '@/lib/translations'
 
   interface Item {
     box_id: string
@@ -8,15 +9,6 @@
   }
 
   const props = defineProps<{ items: Item[], klassMap?: Record<string, string> }>()
-
-  const defaultMap: Record<string, string> = {
-    'crazing': 'Трещины',
-    'inclusion': 'Включения',
-    'patches': 'Бляшки',
-    'pitted_surface': 'Каверны',
-    'rolled-in_scale': 'Окалины',
-    'scratches': 'Царапины',
-  }
 
   const headers = [
     { title: 'Box ID', key: 'box_id', align: 'start' as const },
@@ -29,8 +21,15 @@
     return m ? Number(m[0]) : 0
   }
 
+  function rowClass (item: any): string {
+    const v = Number(item?.confidence_num ?? 0)
+    if (v >= 80) return 'row-strong'
+    if (v >= 50) return 'row-medium'
+    return 'row-weak'
+  }
+
   const itemsComputed = computed(() => (props.items ?? []).map(i => {
-    const map = props.klassMap ?? defaultMap
+    const map = props.klassMap ?? damageClassRuMap
     const klass_ru = map[i.klass] ?? i.klass
     return {
       ...i,
@@ -57,7 +56,6 @@
     <template #item.confidence="{ item }">
       <span>{{ item.confidence }}</span>
     </template>
-
     <template #item="{ item }">
       <tr :class="rowClass(item)">
         <td>{{ item.box_id }}</td>
@@ -68,33 +66,8 @@
   </v-data-table>
 </template>
 
-<script lang="ts">
-  export default {
-    methods: {
-      rowClass (item: any) {
-        const c = Number(item.confidence_num ?? 0)
-        if (c >= 80) return 'row-high'
-        if (c >= 50) return 'row-mid'
-        if (c > 0) return 'row-low'
-        return 'row-none'
-      },
-    },
-  }
-</script>
-
 <style scoped>
-.result-data-table :deep(table) {
-  width: 100%;
-}
-
-/* Подсветка строк по уверенности */
-.row-high { background-color: rgba(16, 185, 129, 0.15); }
-.row-mid { background-color: rgba(234, 179, 8, 0.18); }
-.row-low { background-color: rgba(244, 63, 94, 0.12); }
-.row-none { background-color: transparent; }
-
-/* Немного отступов */
-:deep(.v-data-table__th) {
-  font-weight: 700;
-}
+.result-data-table :deep(tbody tr.row-strong) { background-color: rgba(34,197,94,0.15); }
+.result-data-table :deep(tbody tr.row-medium) { background-color: rgba(234,179,8,0.15); }
+.result-data-table :deep(tbody tr.row-weak) { background-color: rgba(244,63,94,0.15); }
 </style>

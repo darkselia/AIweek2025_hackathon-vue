@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import { onBeforeUnmount, ref } from 'vue'
+  import { damageClassRuMap } from '@/lib/translations'
   import { post } from '@/utils.ts'
 
   const selectedImage = ref<File | null>(null)
@@ -10,16 +11,6 @@
   const resultText = ref<string>('')
   const resultItems = ref<Array<{ box_id: string, klass: string, confidence: string }>>([])
 
-  const klassMap: Record<string, string> = {
-    'crazing': 'Трещины',
-    'inclusion': 'Включения',
-    'patches': 'Бляшки',
-    'pitted_surface': 'Каверны',
-    'rolled-in_scale': 'Окалины',
-    'scratches': 'Царапины',
-  }
-
-  // Вспомогательные функции
   function revoke (urlRef: { value: string | null }) {
     if (urlRef.value) {
       URL.revokeObjectURL(urlRef.value)
@@ -192,7 +183,7 @@
           >
             <transition mode="out-in" name="fade">
               <div v-if="selectedImage" class="preview-wrapper">
-                <img alt="Превью" class="preview-image" :src="previewUrl">
+                <img alt="Превью" class="preview-image" :src="previewUrl ?? ''">
                 <div class="preview-overlay">
                   <p>Перетащите новое изображение, чтобы заменить</p>
                 </div>
@@ -269,7 +260,7 @@
               <h3 class="text-title">Результат классификации</h3>
             </div>
             <div v-if="resultItems && resultItems.length > 0">
-              <ClassificationResultTable :items="resultItems" :klass-map="klassMap" />
+              <ClassificationResultTable :items="resultItems" :klass-map="damageClassRuMap" />
             </div>
             <p v-else class="text-content">{{ resultText }}</p>
           </v-card>
@@ -491,6 +482,7 @@
   margin: 0 auto;
 }
 
+.result-placeholder {
 .status-chip {
   position: absolute;
   top: 12px;
@@ -516,7 +508,6 @@
   position: relative;
 }
 
-.result-placeholder {
   text-align: center;
   color: rgba(var(--v-theme-on-surface), 0.6);
   display: flex;
@@ -589,14 +580,6 @@
 .text-title {
   font-size: 22px;
   font-weight: 800;
-}
-
-.text-card-title {
-  font-size: 12px;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-  margin-bottom: 8px;
 }
 
 .text-content {
@@ -680,6 +663,5 @@
 .fade-leave-to {
   opacity: 0;
   transform: translateY(6px);
-
 }
 </style>
